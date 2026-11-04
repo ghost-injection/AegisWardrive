@@ -610,6 +610,9 @@ public class MainActivity extends Activity implements WardriveService.Listener {
             radar = new RadarView(this, th);
             radar.setHits(WardriveService.snapshot());
             radar.setActive(WardriveService.isRunning());
+            radar.setSelf(lastLat, lastLon, lastBear, hasFix);
+            try { radar.setPositions(db.estAll()); } catch (Throwable ignored) { }
+            radar.setTarget(hudTargetBssid);
             scanStage.addView(radar, new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         }
@@ -655,6 +658,9 @@ public class MainActivity extends Activity implements WardriveService.Listener {
         if (radar != null) {
             radar.setHits(s);
             radar.setActive(WardriveService.isRunning());
+            radar.setSelf(lastLat, lastLon, lastBear, hasFix);
+            try { radar.setPositions(db.estAll()); } catch (Throwable ignored) { }
+            radar.setTarget(hudTargetBssid);
         }
         if (sweepMap && mapView != null) {
             long now = System.currentTimeMillis();
@@ -771,7 +777,31 @@ public class MainActivity extends Activity implements WardriveService.Listener {
                         : h.isWep() ? th.bad : h.isOpen() ? th.warn : th.text,
                 9.5f, prime);
         t.setPadding(0, Ui.dp(this, 3), 0, Ui.dp(this, 3));
+
+        // Tapping a live row locks it as the target: highlighted on the radar,
+        // bearing line drawn, nav strip armed. Same selection the HUD uses.
+        final Hit hit = h;
+        if (h.bssid != null && h.bssid.equals(hudTargetBssid)) {
+            t.setBackgroundColor(alpha(th.accent, 26));
+            t.setTextColor(th.bright);
+        }
+        t.setOnClickListener(new View.OnClickListener() {
+            @Override public void onClick(View v) { selectTarget(hit); }
+        });
         return t;
+    }
+
+    /** Lock a network as the current target across radar, map, nav strip and HUD. */
+    private void selectTarget(Hit h) {
+        if (h == null) return;
+        hudTargetBssid = h.bssid;
+        navTarget = h;
+        navTargetLoad = System.currentTimeMillis();
+        if (radar != null) radar.setTarget(h.bssid);
+        if (mapView != null && h.lat != 0 && h.lon != 0) mapView.setTarget(h);
+        updateNav();
+        if (crt != null) crt.burst(0.7f);
+        toast("LOCK " + h.ssidOrGhost());
     }
 
     /**
