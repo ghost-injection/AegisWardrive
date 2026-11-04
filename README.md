@@ -5,6 +5,40 @@ access point your radio can hear — then tells you which ones are worth caring 
 
 No root. No injection. No monitor mode. It listens to what the OS already broadcasts.
 
+## Download
+
+**[⬇ Download AegisWardrive.apk](https://github.com/ghost-injection/AegisWardrive/releases/latest/download/AegisWardrive.apk)** — always the latest build. No GitHub account needed.
+
+Or browse [all releases](https://github.com/ghost-injection/AegisWardrive/releases).
+
+| | |
+|---|---|
+| Version | 1.1.0 |
+| Size | 97 KB |
+| Requires | Android 13+ (API 33), arm64 |
+| SHA-256 | `4f5911857c06460fcac4110bcbab48715e1db6f6a9a08e6cb4abfc4cad1d05fc` |
+
+### Install from the phone
+
+1. Tap the download link above.
+2. Android will warn about installing from an unknown source — allow your browser or
+   file manager to install unknown apps when prompted.
+3. Play Protect may flag it as an "unknown developer" build. That is expected: it is
+   self-signed, not distributed through Play.
+4. Open `AegisWardrive.apk` → **Install** → grant Location and Nearby Devices.
+
+### Install over adb
+
+```bash
+adb install -r AegisWardrive.apk
+```
+
+Verify what you downloaded before installing:
+
+```bash
+sha256sum AegisWardrive.apk   # must match the hash above
+```
+
 ```
 NODES 79   OPEN 0   WEP 0   PRIME 54   HIDDEN 9   GPS LOCK
 ```
