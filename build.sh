@@ -29,7 +29,7 @@ step "aapt2 link manifest + resources"
   --java "$OUT/gen" \
   -A "$APP/assets" \
   --min-sdk-version 29 --target-sdk-version 35 \
-  --version-code 2 --version-name 1.1 \
+  --version-code 3 --version-name 1.2 \
   --auto-add-overlay \
   "$OUT/res.zip" 2>&1 | tee -a "$LOG"
 

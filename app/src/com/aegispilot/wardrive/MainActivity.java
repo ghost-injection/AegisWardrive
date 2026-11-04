@@ -70,6 +70,8 @@ public class MainActivity extends Activity implements WardriveService.Listener {
     private LinearLayout navStrip;
     private TextView navArrow, navDist, navInfo;
     private Hit navTarget;
+    /** Set when the operator picks a row in TARGETS; consumed by buildMap(). */
+    private Hit pendingMapTarget;
     private long navTargetLoad;
     private boolean inRangeAnnounced;
     private static final double IN_RANGE_M = 15.0;
@@ -1230,9 +1232,31 @@ public class MainActivity extends Activity implements WardriveService.Listener {
         card.addView(foot);
 
         card.setOnClickListener(new View.OnClickListener() {
-            @Override public void onClick(View v) { openTarget(h); }
+            @Override public void onClick(View v) { focusTargetOnMap(h); }
+        });
+        // Long press keeps the old behaviour: the full intelligence sheet, no map jump.
+        card.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override public boolean onLongClick(View v) { openTarget(h); return true; }
         });
         return card;
+    }
+
+    /**
+     * TARGETS row tap: jump to HUD MAP, zoom to the node and open its details.
+     * A node with no captured position cannot be centred, so it opens the sheet
+     * instead of dumping the operator on an empty map with no explanation.
+     */
+    private void focusTargetOnMap(final Hit h) {
+        if (h == null) return;
+        if (h.lat == 0 && h.lon == 0) {
+            openTarget(h);
+            toast("NO POSITION CAPTURED \u00b7 DETAILS ONLY");
+            return;
+        }
+        pendingMapTarget = h;
+        hudTargetBssid = h.bssid;
+        show(2);
+        mapTargetDialog(h);
     }
 
     // ---------------------------------------------------------------- NODE PANEL
@@ -1430,6 +1454,19 @@ public class MainActivity extends Activity implements WardriveService.Listener {
         mapView.setOnTargetTap(new MapView.OnTargetTap() {
             @Override public void onTarget(Hit h) { mapTargetDialog(h); }
         });
+        if (pendingMapTarget != null) {
+            final Hit jump = pendingMapTarget;
+            pendingMapTarget = null;
+            // Wait for layout: setTarget() divides by view width to pick a zoom, and
+            // width is zero until this view has been measured.
+            mapView.post(new Runnable() {
+                @Override public void run() {
+                    mapView.setTarget(jump);
+                    mapView.recenter();
+                    mapView.invalidate();
+                }
+            });
+        }
         frame.addView(mapView, Ui.lp(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         v.addView(frame, Ui.lp(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
 

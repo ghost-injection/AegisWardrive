@@ -1,5 +1,6 @@
 package com.aegispilot.wardrive;
 
+import android.Manifest;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -10,6 +11,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.content.pm.ServiceInfo;
 import android.location.Location;
 import android.location.LocationListener;
@@ -133,7 +135,7 @@ public class WardriveService extends Service {
             stopSelf();
             return START_NOT_STICKY;
         }
-        begin();
+        if (!begin()) return START_NOT_STICKY;
         return START_STICKY;
     }
 
@@ -153,8 +155,41 @@ public class WardriveService extends Service {
 
     // ---------------------------------------------------------------- start
 
-    private void begin() {
-        if (running) { updateNotif(); return; }
+    private boolean hasLocPerm() {
+        return checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)
+                    == PackageManager.PERMISSION_GRANTED
+            || checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
+                    == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /** Non foreground notice, used when the sweep cannot legally start. */
+    private void postPlain(String why) {
+        try {
+            createChannel();
+            NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            if (nm == null) return;
+            PendingIntent pi = PendingIntent.getActivity(this, 0,
+                    new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+                    PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            Notification n = new Notification.Builder(this, CHAN)
+                    .setContentTitle("AEGIS//WARDRIVE")
+                    .setContentText(why)
+                    .setSmallIcon(android.R.drawable.ic_menu_mylocation)
+                    .setContentIntent(pi)
+                    .setAutoCancel(true)
+                    .build();
+            nm.notify(NID + 1, n);
+        } catch (Throwable ignored) {}
+    }
+
+    private boolean begin() {
+        if (running) { updateNotif(); return true; }
+        if (!hasLocPerm()) {
+            persistRunning(false);
+            postPlain("location permission missing // open the app and allow location");
+            stopSelf();
+            return false;
+        }
         synchronized (session) { session.clear(); sessionSeen.clear(); }
         synchronized (primeSeen) { primeSeen.clear(); }
         lastNotified = -1;
@@ -172,10 +207,20 @@ public class WardriveService extends Service {
         persistRunning(true);
         createChannel();
         Notification n = build("sweep armed // acquiring fix");
-        if (Build.VERSION.SDK_INT >= 29) {
-            startForeground(NID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
-        } else {
-            startForeground(NID, n);
+        try {
+            if (Build.VERSION.SDK_INT >= 29) {
+                startForeground(NID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION);
+            } else {
+                startForeground(NID, n);
+            }
+        } catch (Throwable t) {
+            // Android 12+ refuses a location FGS started from a background context and
+            // Android 14+ throws SecurityException when FGS_LOCATION or the location
+            // grant is missing. Neither is allowed to kill the process.
+            persistRunning(false);
+            postPlain("sweep blocked by Android // open the app and press ARM");
+            stopSelf();
+            return false;
         }
         running = true;
 
@@ -196,6 +241,7 @@ public class WardriveService extends Service {
         startLocation();
         h.post(tick);
         try { if (wm != null) wm.startScan(); } catch (Exception ignored) {}
+        return true;
     }
 
     private void startLocation() {
@@ -551,6 +597,12 @@ public class WardriveService extends Service {
         boolean armed = c.getSharedPreferences("wardrive", Context.MODE_PRIVATE)
                 .getBoolean("resume_sweep", false);
         if (!armed) return;
+        // BOOT_COMPLETED and MY_PACKAGE_REPLACED both run in the background. Android
+        // 14+ throws ForegroundServiceStartNotAllowedException when a location FGS is
+        // started from there without background location access, and the exception
+        // lands in the service process and kills the app. Only resume when allowed.
+        if (c.checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) return;
         try { start(c); } catch (Throwable ignored) {}
     }
 
