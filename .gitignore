@@ -1,0 +1,33 @@
+# build output
+out/
+build.log
+
+# signing material — never publish
+*.keystore
+*.jks
+*.p12
+keystore.properties
+
+# SDK / toolchain archives
+cmdline.zip
+*.zip
+
+# scratch captures from device debugging
+ui.xml
+ui2.xml
+state.txt
+top.txt
+ct
+dash.py
+shot*.png
+!docs/*.png
+
+# sample data dumps
+sample.csv.gz
+*.csv
+*.kml
+*.geojson
+
+# OS noise
+.DS_Store
+Thumbs.db
