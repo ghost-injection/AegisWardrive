@@ -48,7 +48,12 @@ public class RadarView extends View {
         int w = getWidth(), h = getHeight();
         if (w == 0 || h == 0) return;
         float cx = w / 2f, cy = h / 2f;
-        float r = Math.min(w, h) / 2f - dp(6);
+        // Reserve room for everything drawn OUTSIDE the ring: the outer stroke, the
+        // corner brackets, the blip halos (radius + dp(11)) and the RANGE/NODES
+        // labels. The old dp(6) inset let blips and labels spill off the canvas.
+        float pad = dp(16);
+        float r = Math.min(w, h) / 2f - pad;
+        if (r <= dp(12)) return;   // too small to draw anything meaningful
 
         c.drawColor(th.bg);
         drawGrid(c, cx, cy, r);
@@ -122,7 +127,9 @@ public class RadarView extends View {
         long t = System.currentTimeMillis();
         for (Hit h : hits) {
             double a = Math.toRadians(h.bearing());
-            float rr = h.rangeNorm() * r;
+            // Keep the blip and its halo INSIDE the outer ring: rr + dp(11) halo
+            // must never exceed r, so clamp to r - dp(14).
+            float rr = Math.min(h.rangeNorm(), 1f) * Math.max(0f, r - dp(14f));
             float x = cx + (float) Math.cos(a) * rr;
             float y = cy + (float) Math.sin(a) * rr;
             int col = h.isWep() ? th.bad : h.isOpen() ? th.warn : th.accent2;
@@ -145,9 +152,12 @@ public class RadarView extends View {
         p.setTypeface(android.graphics.Typeface.MONOSPACE);
         String t1 = "RANGE " + String.format(java.util.Locale.US, "%.0fm", r / 2.2f);
         String t2 = "NODES " + hits.size();
-        c.drawText(t1, cx - r, cy - r - dp(4), p);
+        // Labels sit just INSIDE the top of the ring. Drawn above it, they clipped
+        // whenever the view was wider than tall and r approached h/2.
+        float labelY = cy - r + dp(10);
+        c.drawText(t1, cx - r + dp(6), labelY, p);
         float tw = p.measureText(t2);
-        c.drawText(t2, cx + r - tw, cy - r - dp(4), p);
+        c.drawText(t2, cx + r - tw - dp(6), labelY, p);
 
         p.setColor(withAlpha(th.accent, 170));
         float b = dp(9);
